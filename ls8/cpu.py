@@ -1,6 +1,7 @@
 """CPU functionality."""
 
 import sys
+import time
 
 
 class CPU:
@@ -22,7 +23,7 @@ class CPU:
         self.IR = None
         self.MAR = None
         self.MDR = None
-        self.FL = 00000000
+        self.FL = 0
 
         LDI = 0b10000010
         PRN = 0b01000111
@@ -30,39 +31,58 @@ class CPU:
         MUL = 0b10100010
         POP = 0b01000110
         PUSH = 0b01000101
+        CALL = 0b01010000
+        RET = 0b00010001
+        ADD = 0b10100000
+        ST = 0b10000100
 
-        self.branchtable = {}
-        self.branchtable[MUL] = self.mul
-        self.branchtable[LDI] = self.ldi
-        self.branchtable[HLT] = self.hlt
-        self.branchtable[PRN] = self.prn
-        self.branchtable[POP] = self.pop
-        self.branchtable[PUSH] = self.push
+        self.branchtable = {
+            MUL: self.mul,
+            LDI: self.ldi,
+            HLT: self.hlt,
+            PRN: self.prn,
+            POP: self.pop,
+            PUSH: self.push,
+            CALL: self.call,
+            RET: self.ret,
+            ADD: self.add,
+            ST: self.st
+        }
 
     def ram_read(self, address):
-        return self.ram[address]
+        self.MAR = address
+        self.MDR = self.ram[self.MAR]
+        return self.MDR
 
     def ram_write(self, address, value):
-        self.ram[address] = value
+        self.MAR = address
+        self.MDR = value
+        self.ram[self.MAR] = self.MDR
 
     def run(self):
+        interrupt_time = time.time()
         while self.running:
+            current_time = time.time()
+            if current_time - interrupt_time >= 1:
+                self.reg = self.reg | 0b00000010
+                interrupt_time = current_time
+
             self.IR = self.ram_read(self.PC)
             operand_a = self.ram_read(self.PC + 1)
             operand_b = self.ram_read(self.PC + 2)
 
-            operand_count = '{0:08b}'.format(self.IR)[:2]
-            is_pc_setter = '{0:08b}'.format(self.IR)[4:5]
+            operand_count = self.IR >> 6
+            is_pc_setter = self.IR >> 4 & 0b00000001
 
-            if int(operand_count, 2) == 2:
+            if operand_count == 2:
                 self.branchtable[self.IR](operand_a, operand_b)
-            elif int(operand_count, 2) == 1:
+            elif operand_count == 1:
                 self.branchtable[self.IR](operand_a)
             else:
                 self.branchtable[self.IR]()
 
-            if int(is_pc_setter, 2) == 0:
-                self.PC += int(operand_count, 2) + 1
+            if is_pc_setter == 0:
+                self.PC += operand_count + 1
 
     def load(self):
         """Load a program into memory."""
@@ -121,23 +141,38 @@ class CPU:
 
         print()
 
-    def ldi(self, operand_a, operand_b):
-        self.reg[operand_a] = operand_b
+    def add(self, operand_a, operand_b):
+        self.alu("ADD", operand_a, operand_b)
+
+    def call(self, operand_a):
+        self.reg[7] -= 1
+        self.ram_write(self.reg[7], self.PC + 2)
+        self.PC = self.reg[operand_a]
 
     def hlt(self):
         print("exiting")
         self.running = False
 
-    def prn(self, operand_a):
-        print(self.reg[operand_a])
+    def ldi(self, operand_a, operand_b):
+        self.reg[operand_a] = operand_b
 
     def mul(self, operand_a, operand_b):
         self.alu("MUL", operand_a, operand_b)
 
-    def push(self, operand_a, operand_b):
-        self.reg[7] -= 1
-        self.ram_write(self.reg[7], operand_a)
-
     def pop(self, operand_a):
         self.ldi(operand_a, self.ram[self.reg[7]])
         self.reg[7] += 1
+
+    def prn(self, operand_a):
+        print(self.reg[operand_a])
+
+    def push(self, operand_a):
+        self.reg[7] -= 1
+        self.ram_write(self.reg[7], self.reg[operand_a])
+
+    def ret(self):
+        self.PC = self.ram[self.reg[7]]
+        self.reg[7] += 1
+
+    def st(self, operand_a, operand_b):
+        self.ram[self.reg[operand_a]] = self.reg[operand_b]
