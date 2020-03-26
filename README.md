@@ -25,15 +25,15 @@
 
 ### Day 3: Stack
 
-- [ ] Implement the System Stack and be able to run the `stack.ls8` program
+- [x] Implement the System Stack and be able to run the `stack.ls8` program
 
 ### Day 4: Get `call.ls8` running
 
-- [ ] Implement the CALL and RET instructions
-- [ ] Implement Subroutine Calls and be able to run the `call.ls8` program
+- [x] Implement the CALL and RET instructions
+- [x] Implement Subroutine Calls and be able to run the `call.ls8` program
 
 ### Stretch
 
-- [ ] Add the timer interrupt to the LS-8 emulator
-- [ ] Add the keyboard interrupt to the LS-8 emulator
-- [ ] Write an LS-8 assembly program to draw a curved histogram on the screen
+- [x] Add the timer interrupt to the LS-8 emulator
+- [x] Add the keyboard interrupt to the LS-8 emulator
+- [-] Write an LS-8 assembly program to draw a curved histogram on the screen
