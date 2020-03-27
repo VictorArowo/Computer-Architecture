@@ -4,6 +4,7 @@ import time
 from select import select
 
 ADD = 0b10100000
+AND = 0B10101000
 CALL = 0b01010000
 CMP = 0b10100111
 HLT = 0b00000001
@@ -17,13 +18,19 @@ JMP = 0b01010100
 JNE = 0b01010110
 LD = 0b10000011
 LDI = 0b10000010
+MOD = 0b10100100
 MUL = 0b10100010
+NOT = 0b01101001
+OR = 0b10101010
 POP = 0b01000110
 PRN = 0b01000111
 PRA = 0b01001000
 PUSH = 0b01000101
 RET = 0b00010001
+SHL = 0b10101100
+SHR = 0b10101101
 ST = 0b10000100
+XOR = 0b10101011
 
 
 class CPU:
@@ -48,27 +55,34 @@ class CPU:
         self.FL = 0x00
 
         self.branchtable = {
-            MUL: self.mul,
-            LDI: self.ldi,
-            HLT: self.hlt,
-            PRN: self.prn,
-            POP: self.pop,
-            PUSH: self.push,
-            CALL: self.call,
-            RET: self.ret,
-            ADD: self.add,
-            ST: self.st,
-            JMP: self.jmp,
-            PRA: self.pra,
-            IRET: self.iret,
-            LD: self.ld,
-            CMP: self.cmp,
-            JEQ: self.jeq,
-            JGE: self.jge,
-            JGT: self.jgt,
-            JLE: self.jle,
-            JLT: self.jlt,
-            JNE: self.jne
+            MUL: self.op_mul,
+            LDI: self.op_ldi,
+            HLT: self.op_hlt,
+            PRN: self.op_prn,
+            POP: self.op_pop,
+            PUSH: self.op_push,
+            CALL: self.op_call,
+            RET: self.op_ret,
+            ADD: self.op_add,
+            ST: self.op_st,
+            JMP: self.op_jmp,
+            PRA: self.op_pra,
+            IRET: self.op_iret,
+            LD: self.op_ld,
+            CMP: self.op_cmp,
+            JEQ: self.op_jeq,
+            JGE: self.op_jge,
+            JGT: self.op_jgt,
+            JLE: self.op_jle,
+            JLT: self.op_jlt,
+            JNE: self.op_jne,
+            AND: self.op_and,
+            OR: self.op_or,
+            XOR: self.op_xor,
+            NOT: self.op_not,
+            SHL: self.op_shl,
+            SHR: self.op_shr,
+            MOD: self.op_mod
         }
 
     def ram_read(self, address):
@@ -115,7 +129,7 @@ class CPU:
 
                     self.FL = 0
                     for j in range(7):
-                        self.push(j)
+                        self.op_push(j)
                         self.reg[j] = 0
                     interrupt_vector = 0xF8 + i
                     self.PC = self.ram[interrupt_vector]
@@ -179,7 +193,20 @@ class CPU:
                 self.FL = self.FL | 0b00000100
             if self.reg[reg_a] > self.reg[reg_b]:
                 self.FL = self.FL | 0b00000010
-
+        elif op == "ADD":
+            self.reg[reg_a] = self.reg[reg_a] & self.reg[reg_b]
+        elif op == "OR":
+            self.reg[reg_a] = self.reg[reg_a] | self.reg[reg_b]
+        elif op == "XOR":
+            self.reg[reg_a] = self.reg[reg_a] ^ self.reg[reg_b]
+        elif op == "NOT":
+            self.reg[reg_a] = ~self.reg[reg_a]
+        elif op == "SHL":
+            self.reg[reg_a] = self.reg[reg_a] << self.reg[reg_b]
+        elif op == "SHR":
+            self.reg[reg_a] = self.reg[reg_a] >> self.reg[reg_b]
+        elif op == "MOD":
+            self.reg[reg_a] = self.reg[reg_a] % self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -203,24 +230,27 @@ class CPU:
 
         print()
 
-    def add(self, operand_a, operand_b):
+    def op_add(self, operand_a, operand_b):
         self.alu("ADD", operand_a, operand_b)
 
-    def call(self, operand_a):
+    def op_and(self, operand_a, operand_b):
+        self.alu("AND", operand_a, operand_b)
+
+    def op_call(self, operand_a):
         self.reg[7] -= 1
         self.ram_write(self.reg[7], self.PC + 2)
         self.PC = self.reg[operand_a]
 
-    def cmp(self, operand_a, operand_b):
+    def op_cmp(self, operand_a, operand_b):
         self.alu("CMP", operand_a, operand_b)
 
-    def hlt(self):
+    def op_hlt(self):
         print("exiting")
         self.running = False
 
-    def iret(self):
+    def op_iret(self):
         for i in range(6, -1, -1):
-            self.pop(i)
+            self.op_pop(i)
         # FL Register
         self.flag = self.ram[self.reg[7]]
         self.reg[7] += 1
@@ -229,71 +259,89 @@ class CPU:
         self.PC = self.ram[self.reg[7]]
         self.reg[7] += 1
 
-    def jeq(self, operand_a):
+    def op_jeq(self, operand_a):
         if (self.FL & 0b00000001) == 1:
             self.PC = self.reg[operand_a]
         else:
             self.PC += 2
 
-    def jge(self, operand_a):
+    def op_jge(self, operand_a):
         if (self.FL & 0b00000011) == 1:
             self.PC = self.reg[operand_a]
         else:
             self.PC += 2
 
-    def jgt(self, operand_a):
+    def op_jgt(self, operand_a):
         if (self.FL >> 1 & 0b00000001) == 1:
             self.PC = self.reg[operand_a]
         else:
             self.PC += 2
 
-    def jle(self, operand_a):
+    def op_jle(self, operand_a):
         if (self.FL & 0b00000101) == 5:
             self.PC = self.reg[operand_a]
         else:
             self.PC += 2
 
-    def jlt(self, operand_a):
+    def op_jlt(self, operand_a):
         if (self.FL >> 2 & 0b00000001) == 1:
             self.PC = self.reg[operand_a]
         else:
             self.PC += 2
 
-    def jmp(self, operand_a):
+    def op_jmp(self, operand_a):
         self.PC = self.reg[operand_a]
 
-    def jne(self, operand_a):
+    def op_jne(self, operand_a):
         if (self.FL & 0b00000001) == 0:
             self.PC = self.reg[operand_a]
         else:
             self.PC += 2
 
-    def ld(self, operand_a, operand_b):
+    def op_ld(self, operand_a, operand_b):
         self.reg[operand_a] = self.ram[self.reg[operand_b]]
 
-    def ldi(self, operand_a, operand_b):
+    def op_ldi(self, operand_a, operand_b):
         self.reg[operand_a] = operand_b
 
-    def mul(self, operand_a, operand_b):
+    def op_mod(self, operand_a, operand_b):
+        self.alu("MOD", operand_a, operand_b)
+
+    def op_mul(self, operand_a, operand_b):
         self.alu("MUL", operand_a, operand_b)
 
-    def pop(self, operand_a):
-        self.ldi(operand_a, self.ram[self.reg[7]])
+    def op_not(self, operand_a, operand_b):
+        self.alu("NOT", operand_a, operand_b)
+
+    def op_or(self, operand_a, operand_b):
+        self.alu("OR", operand_a, operand_b)
+
+    def op_pop(self, operand_a):
+        self.op_ldi(operand_a, self.ram[self.reg[7]])
         self.reg[7] += 1
 
-    def pra(self, operand_a):
+    def op_pra(self, operand_a):
         print(chr(self.reg[operand_a]))
 
-    def prn(self, operand_a):
+    def op_prn(self, operand_a):
         print(self.reg[operand_a])
 
-    def push(self, operand_a):
+    def op_push(self, operand_a):
         self.reg[7] -= 1
         self.ram_write(self.reg[7], self.reg[operand_a])
 
-    def ret(self):
+    def op_ret(self):
         self.PC = self.ram[self.reg[7]]
         self.reg[7] += 1
 
-    def st(self, operand_a, operand_b):
+    def op_shl(self, operand_a, operand_b):
+        self.alu("SHL", operand_a, operand_b)
+
+    def op_shr(self, operand_a, operand_b):
+        self.alu("SHR", operand_a, operand_b)
+
+    def op_st(self, operand_a, operand_b):
         self.ram[self.reg[operand_a]] = self.reg[operand_b]
+
+    def op_xor(self, operand_a, operand_b):
+        self.alu("XOR", operand_a, operand_b)
