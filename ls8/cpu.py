@@ -3,20 +3,11 @@ import sys
 import time
 from select import select
 
-LDI = 0b10000010
-PRN = 0b01000111
-HLT = 0b00000001
-MUL = 0b10100010
-POP = 0b01000110
-PUSH = 0b01000101
-CALL = 0b01010000
-RET = 0b00010001
 ADD = 0b10100000
-ST = 0b10000100
-PRA = 0b01001000
-IRET = 0b00010011
-LD = 0b10000011
+CALL = 0b01010000
 CMP = 0b10100111
+HLT = 0b00000001
+IRET = 0b00010011
 JEQ = 0b01010101
 JGE = 0b01011010
 JGT = 0b01010111
@@ -24,6 +15,15 @@ JLE = 0b01011001
 JLT = 0b01011000
 JMP = 0b01010100
 JNE = 0b01010110
+LD = 0b10000011
+LDI = 0b10000010
+MUL = 0b10100010
+POP = 0b01000110
+PRN = 0b01000111
+PRA = 0b01001000
+PUSH = 0b01000101
+RET = 0b00010001
+ST = 0b10000100
 
 
 class CPU:
@@ -167,17 +167,17 @@ class CPU:
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
-
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
         elif op == "MUL":
             self.reg[reg_a] *= self.reg[reg_b]
         elif op == "CMP":
+            self.FL = 0x00
             if self.reg[reg_a] == self.reg[reg_b]:
                 self.FL = self.FL | 0b00000001
-            elif self.reg[reg_a] < self.reg[reg_b]:
+            if self.reg[reg_a] < self.reg[reg_b]:
                 self.FL = self.FL | 0b00000100
-            else:
+            if self.reg[reg_a] > self.reg[reg_b]:
                 self.FL = self.FL | 0b00000010
 
         else:
@@ -230,31 +230,43 @@ class CPU:
         self.reg[7] += 1
 
     def jeq(self, operand_a):
-        if self.FL & 0b00000001 == 1:
+        if (self.FL & 0b00000001) == 1:
             self.PC = self.reg[operand_a]
+        else:
+            self.PC += 2
 
     def jge(self, operand_a):
-        if self.FL & 0b00000011 == 3:
+        if (self.FL & 0b00000011) == 1:
             self.PC = self.reg[operand_a]
+        else:
+            self.PC += 2
 
     def jgt(self, operand_a):
-        if self.FL >> 1 & 0b00000001 == 1:
+        if (self.FL >> 1 & 0b00000001) == 1:
             self.PC = self.reg[operand_a]
+        else:
+            self.PC += 2
 
     def jle(self, operand_a):
-        if self.FL & 0b00000101 == 5:
+        if (self.FL & 0b00000101) == 5:
             self.PC = self.reg[operand_a]
+        else:
+            self.PC += 2
 
     def jlt(self, operand_a):
-        if self.FL >> 2 == 1:
+        if (self.FL >> 2 & 0b00000001) == 1:
             self.PC = self.reg[operand_a]
+        else:
+            self.PC += 2
 
     def jmp(self, operand_a):
         self.PC = self.reg[operand_a]
 
     def jne(self, operand_a):
-        if self.FL >> 2 == 0:
+        if (self.FL & 0b00000001) == 0:
             self.PC = self.reg[operand_a]
+        else:
+            self.PC += 2
 
     def ld(self, operand_a, operand_b):
         self.reg[operand_a] = self.ram[self.reg[operand_b]]
